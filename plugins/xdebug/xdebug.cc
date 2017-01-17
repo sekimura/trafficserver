@@ -36,6 +36,7 @@ enum {
   XHEADER_X_CACHE          = 0x0010u,
   XHEADER_X_GENERATION     = 0x0020u,
   XHEADER_X_TRANSACTION_ID = 0x0040u,
+  XHEADER_X_PARENT_PROXY   = 0x0080u,
 };
 
 static int XArgIndex             = 0;
@@ -161,6 +162,29 @@ InjectCacheHeader(TSHttpTxn txn, TSMBuffer buffer, TSMLoc hdr)
 
 done:
   if (dst != TS_NULL_MLOC) {
+    TSHandleMLocRelease(buffer, hdr, dst);
+  }
+}
+
+static void
+InjectParentProxyHeader(TSHttpTxn txn, TSMBuffer buffer, TSMLoc hdr)
+{
+  TSMLoc dst = FindOrMakeHdrField(buffer, hdr, "X-Parent-Proxy", lengthof("X-Parent-Proxy"));
+  struct {
+    const char *hostname;
+    int port;
+  } parent_proxy = {nullptr, -1};
+
+  if (dst != TS_NULL_MLOC) {
+    if (TSHttpTxnParentProxyResultGet(txn, &parent_proxy.hostname, &parent_proxy.port) == TS_SUCCESS) {
+      if (parent_proxy.hostname != nullptr && parent_proxy.port != -1) {
+        // "7" should be enough for the port number and ":"
+        int buf_len = strlen(parent_proxy.hostname) + 7;
+        char buf[buf_len];
+        int len = snprintf(buf, buf_len, "%s:%d", parent_proxy.hostname, parent_proxy.port);
+        TSReleaseAssert(TSMimeHdrFieldValueStringInsert(buffer, hdr, dst, 0 /* idx */, buf, len) == TS_SUCCESS);
+      }
+    }
     TSHandleMLocRelease(buffer, hdr, dst);
   }
 }
@@ -291,6 +315,10 @@ XInjectResponseHeaders(TSCont /* contp */, TSEvent event, void *edata)
     InjectTxnUuidHeader(txn, buffer, hdr);
   }
 
+  if (xheaders & XHEADER_X_PARENT_PROXY) {
+    InjectParentProxyHeader(txn, buffer, hdr);
+  }
+
 done:
   TSHttpTxnReenable(txn, TS_EVENT_HTTP_CONTINUE);
   return TS_EVENT_NONE;
@@ -341,6 +369,8 @@ XScanRequestHeaders(TSCont /* contp */, TSEvent event, void *edata)
         xheaders |= XHEADER_X_GENERATION;
       } else if (header_field_eq("x-transaction-id", value, vsize)) {
         xheaders |= XHEADER_X_TRANSACTION_ID;
+      } else if (header_field_eq("x-parent-proxy", value, vsize)) {
+        xheaders |= XHEADER_X_PARENT_PROXY;
       } else if (header_field_eq("via", value, vsize)) {
         // If the client requests the Via header, enable verbose Via debugging for this transaction.
         TSHttpTxnConfigIntSet(txn, TS_CONFIG_HTTP_INSERT_RESPONSE_VIA_STR, 3);

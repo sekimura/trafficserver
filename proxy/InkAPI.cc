@@ -5759,6 +5759,23 @@ TSHttpTxnParentProxySet(TSHttpTxn txnp, const char *hostname, int port)
 }
 
 TSReturnCode
+TSHttpTxnParentProxyResultGet(TSHttpTxn txnp, const char **hostname, int *port)
+{
+  sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);
+
+  HttpSM *sm = (HttpSM *)txnp;
+  ParentResult result;
+
+  sm->t_state.parent_params->findParent(&sm->t_state.request_data, &result);
+  if (result->result == PARENT_SPECIFIED) {
+    *hostname = result->hostname;
+    *port     = result->port;
+  }
+
+  return TS_SUCCESS;
+}
+
+TSReturnCode
 TSHttpTxnParentSelectionUrlGet(TSHttpTxn txnp, TSMBuffer bufp, TSMLoc obj)
 {
   sdk_assert(sdk_sanity_check_txn(txnp) == TS_SUCCESS);

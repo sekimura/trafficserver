@@ -1468,6 +1468,7 @@ tsapi void TSHttpTxnErrorBodySet(TSHttpTxn txnp, char *buf, size_t buflength, ch
 
  */
 tsapi TSReturnCode TSHttpTxnParentProxyGet(TSHttpTxn txnp, const char **hostname, int *port);
+tsapi TSReturnCode TSHttpTxnParentProxyResultGet(TSHttpTxn txnp, const char **hostname, int *port);
 
 /**
     Sets the parent proxy name and port. The string hostname is copied
